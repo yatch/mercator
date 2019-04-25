@@ -4,12 +4,12 @@ class HdlcException(Exception):
 
 class Hdlc(object):
 
-    HDLC_FLAG              = '\x7e'
-    HDLC_FLAG_ESCAPED      = '\x5e'
-    HDLC_ESCAPE            = '\x7d'
-    HDLC_ESCAPE_ESCAPED    = '\x5d'
-    HDLC_CRCINIT           = 0xffff
-    HDLC_CRCGOOD           = 0xf0b8
+    HDLC_FLAG           = '\x7e'
+    HDLC_FLAG_ESCAPED   = '\x5e'
+    HDLC_ESCAPE         = '\x7d'
+    HDLC_ESCAPE_ESCAPED = '\x5d'
+    HDLC_CRCINIT        = 0xffff
+    HDLC_CRCGOOD        = 0xf0b8
 
     FCS16TAB  = (
         0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
@@ -56,23 +56,25 @@ class Hdlc(object):
         """
 
         # make copy of input
-        out_buf     = in_buf[:]
+        out_buf = in_buf[:]
 
         # calculate CRC
-        crc        = self.HDLC_CRCINIT
+        crc  = self.HDLC_CRCINIT
         for b in out_buf:
-            crc    = self._crc_iteration(crc, b)
-        crc        = 0xffff-crc
+            crc = self._crc_iteration(crc, b)
+        crc = 0xffff-crc
 
         # append CRC
-        out_buf     = out_buf + chr(crc & 0xff) + chr((crc & 0xff00) >> 8)
+        out_buf = out_buf + chr(crc & 0xff) + chr((crc & 0xff00) >> 8)
 
         # stuff bytes
-        out_buf     = out_buf.replace(self.HDLC_ESCAPE, self.HDLC_ESCAPE+self.HDLC_ESCAPE_ESCAPED)
-        out_buf     = out_buf.replace(self.HDLC_FLAG,   self.HDLC_ESCAPE+self.HDLC_FLAG_ESCAPED)
+        out_buf = out_buf.replace(self.HDLC_ESCAPE,
+                                  self.HDLC_ESCAPE+self.HDLC_ESCAPE_ESCAPED)
+        out_buf = out_buf.replace(self.HDLC_FLAG,
+                                  self.HDLC_ESCAPE+self.HDLC_FLAG_ESCAPED)
 
         # add flags
-        out_buf     = self.HDLC_FLAG + out_buf + self.HDLC_FLAG
+        out_buf = self.HDLC_FLAG + out_buf + self.HDLC_FLAG
 
         return out_buf
 
@@ -86,27 +88,29 @@ class Hdlc(object):
         assert in_buf[-1] == self.HDLC_FLAG
 
         # make copy of input
-        out_buf     = in_buf[:]
+        out_buf = in_buf[:]
 
         # remove flags
-        out_buf     = out_buf[1:-1]
+        out_buf = out_buf[1:-1]
 
         # unstuff
-        out_buf     = out_buf.replace(self.HDLC_ESCAPE+self.HDLC_FLAG_ESCAPED,   self.HDLC_FLAG)
-        out_buf     = out_buf.replace(self.HDLC_ESCAPE+self.HDLC_ESCAPE_ESCAPED, self.HDLC_ESCAPE)
+        out_buf = out_buf.replace(self.HDLC_ESCAPE+self.HDLC_FLAG_ESCAPED,
+                                  self.HDLC_FLAG)
+        out_buf = out_buf.replace(self.HDLC_ESCAPE+self.HDLC_ESCAPE_ESCAPED,
+                                  self.HDLC_ESCAPE)
 
         if len(out_buf) < 2:
             raise HdlcException('packet too short')
 
         # check CRC
-        crc        = self.HDLC_CRCINIT
+        crc = self.HDLC_CRCINIT
         for b in out_buf:
-            crc    = self._crc_iteration(crc, b)
+            crc = self._crc_iteration(crc, b)
         if crc != self.HDLC_CRCGOOD:
             raise HdlcException('wrong CRC')
 
         # remove CRC
-        out_buf     = out_buf[:-2]  # remove CRC
+        out_buf = out_buf[:-2]  # remove CRC
 
         return out_buf
 
