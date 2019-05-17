@@ -1,3 +1,11 @@
-pyserial
-importlib
-iotlabcli==2.5.2
+colored
+cryptography==2.4.2
+halo
+iotlabcli
+iotlabclient
+netaddr
+paho-mqtt
+python-dateutil
+PyYAML
+tqdm
+websocket-client

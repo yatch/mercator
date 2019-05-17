@@ -1,0 +1,14 @@
+version: 1
+formatters:
+  default:
+    format: '%(asctime)s: [%(levelname)s] %(message)s'
+handlers:
+  file:
+    class: logging.handlers.RotatingFileHandler
+    formatter: default
+    filename: mercator.log
+    maxBytes: 1048576  # 1MB
+    backupCount: 2
+root:
+  level: DEBUG
+  handlers: [file]
