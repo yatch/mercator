@@ -6,7 +6,8 @@ setup(
     packages=find_packages(),
     entry_points={
         'console_scripts': [
-            'mercator = mercator.__main__:main'
+            'mercator = mercator.__main__:main',
+            'mercator-k7conv = mercator.k7conv:main'
         ]
     }
 )
