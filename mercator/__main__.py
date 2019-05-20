@@ -34,8 +34,12 @@ def _init_logger():
 
 def _parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-C', dest='dump_sample_yml_file',
+                        help='print sample YAML file for a specified platform',
+                        choices=['iotlab', 'opentestbed'],
+                        type=str)
     parser.add_argument('-c', dest='config', help='path to config YAML file',
-                        type=str, required=True)
+                        type=str, default='./mercator.yml')
     parser.add_argument('-i', dest='exp_id',
                         help='attach to exp_id (only for iotlab)',
                         type=int)
@@ -180,18 +184,25 @@ def main():
     _init_logger()
 
     args = _parse_args()
-    config = _read_config(args.config)
-    outfile = Outfile(args.out_file_path, config, args.overwrite_out_file)
+    if args.dump_sample_yml_file:
+        module_name = 'mercator.platform.{0}'.format(args.dump_sample_yml_file)
+        platform_module = import_module(module_name)
+        platform_module.Platform.dump_sample_yml_file()
+    elif args.config:
+        config = _read_config(args.config)
+        outfile = Outfile(args.out_file_path, config, args.overwrite_out_file)
 
-    logging.info('Start Mercator at '
-                 + '"{0}" platform'.format(config['platform']['name']))
+        logging.info('Start Mercator at '
+                     + '"{0}" platform'.format(config['platform']['name']))
 
-    platform = _setup_platform(config['platform'], args)
-    nodes = platform.setup_measurement(config['measurement'])
+        platform = _setup_platform(config['platform'], args)
+        nodes = platform.setup_measurement(config['measurement'])
 
-    channels = config['measurement']['channels']
-    num_transactions = config['measurement']['num_transactions_num']
-    _run_transactions(num_transactions, channels, nodes, outfile)
+        channels = config['measurement']['channels']
+        num_transactions = config['measurement']['num_transactions']
+        _run_transactions(num_transactions, channels, nodes, outfile)
+    else:
+        raise ValueError('Shouldn\'t come here')
 
 if __name__ == '__main__':
     main()

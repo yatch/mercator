@@ -19,6 +19,7 @@ import iotlabcli.auth
 import iotlabcli.parser.auth
 import iotlabclient.client
 import websocket
+import yaml
 
 from mercator.hdlc import HDLC_FLAG
 import mercator.node
@@ -89,6 +90,21 @@ class Platform(mercator.platform.Platform):
         self._setup_nodes(config)
 
         return self.nodes
+
+    @staticmethod
+    def _dump_config_platform():
+        config = {}
+        config['name'] = 'iotlab'
+        config['duration_min'] = 60
+        config['nodes'] = ['m3-x.site.iot-lab.info',
+                           'm3-y.site.iot-lab.info',
+                           'm3-z.site.iot-lab.info']
+        config['firmware'] = {}
+        config['firmware']['os'] = 'OpenWSN'
+        config['firmware']['archi'] = 'M3'
+        config['firmware']['path'] = 'firmwares/openwsn-iot-lab_M3.elf'
+
+        print(yaml.dump({'platform': config}, default_flow_style=False))
 
     @staticmethod
     def _get_credentials():
