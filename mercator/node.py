@@ -41,6 +41,7 @@ class NodeStatus(enum.IntEnum):
 class Node(object):
     MAX_REQUEST_RETRIES = 3
     STATUS_POLLING_INTERVAL = 0.5
+    DUMMY_TX_POWER_VALUE = 0
 
     def __init__(self, platform):
         self.platform = platform
@@ -67,8 +68,12 @@ class Node(object):
     def setup(self, config):
         # mercator related
         # Note: OpenWSN doesn't support tx_power_dbm; see
-        # 03oos_mercator.c in openwsn-fw repository
-        self.tx_power_dbm = config['tx_power_dbm']
+        # 03oos_mercator.c in openwsn-fw repository. set a dummy value
+        if self.platform.firmware_os_name == OSName.OpenWSN:
+            self.tx_power_dbm = self.DUMMY_TX_POWER_VALUE
+        else:
+            raise NotImplementedError('{0} is not supported'.format(
+                self.platform.firmware_os_name))
         self.tx_len = config['tx_len']
         self.tx_num_pk = config['tx_num_per_transaction']
         self.tx_ifdur_ms = config['tx_interval_ms']

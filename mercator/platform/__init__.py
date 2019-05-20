@@ -18,7 +18,6 @@ class Platform(object):
         config['num_transactions'] = 10
         config['channels'] = [11, 12, 13, 14, 15, 16, 17, 18,
                               19, 20, 21, 22, 23, 24, 25, 26]
-        config['tx_power_dbm'] = 0
         config['tx_len'] = 100
         config['tx_interval_ms'] = 10
         config['tx_num_per_transaction'] = 100
