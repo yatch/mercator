@@ -88,6 +88,8 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
     total_exec_num = num_transactions * len(channels) * num_nodes
 
     outfile.open()
+    outfile.write_data('start_time',
+                       {'timestamp': datetime.datetime.now().isoformat()})
     with tqdm.tqdm(total=total_exec_num, unit='meas', disable=quiet) as pbar:
         trans_ctr = 0
         while trans_ctr < num_transactions:
@@ -99,7 +101,7 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
                                              trans_ctr, channel,
                                              node_idx, num_nodes)
 
-                    start_time = datetime.datetime.now()
+                    start_time_of_measurement = datetime.datetime.now()
 
                     _make_sure_every_node_is_idle(nodes)
 
@@ -112,13 +114,15 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
 
                     _make_rx_nodes_stop_listening(rx_nodes)
                     _save_data(outfile, tx_node, rx_nodes,
-                               start_time, trans_ctr, channel)
+                               start_time_of_measurement, trans_ctr, channel)
 
                     _end_of_measurement(pbar,
                                         trans_ctr, channel, node_idx, num_nodes)
 
                     outfile.flush()
             trans_ctr += 1
+    outfile.write_data('end_time',
+                       {'timestamp': datetime.datetime.now().isoformat()})
     outfile.close()
 
 def _beginning_of_measurement(pbar, trans_ctr, channel, node_idx, num_nodes):
