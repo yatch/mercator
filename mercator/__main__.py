@@ -3,6 +3,7 @@ import datetime
 from importlib import import_module
 import logging
 import logging.config
+import math
 import os
 import sys
 import threading
@@ -13,7 +14,7 @@ import yaml
 
 from mercator.node import NodeStatus
 
-from mercator.utils import Outfile, print_bold
+from mercator.utils import MercatorHalo, Outfile, print_bold
 
 def _init_logger():
     config_file_path = os.path.join(os.path.dirname(__file__), '..',
@@ -52,6 +53,8 @@ def _parse_args():
     parser.add_argument('-f', dest='overwrite_out_file',
                         help='overwrite an existing file',
                         default=False, action='store_true')
+    parser.add_argument('-q', dest='quiet',
+                        help='suppress console outputs', action='store_true')
     return parser.parse_args()
 
 def _read_config(config_file_path):
@@ -80,13 +83,14 @@ def _setup_platform(platform_config, args):
 
     return  platform_module.Platform(platform_config, **platform_args)
 
-def _run_transactions(num_transactions, channels, nodes, outfile):
+def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
     num_nodes = len(nodes)
     total_exec_num = num_transactions * len(channels) * num_nodes
 
     outfile.open()
-    with tqdm.tqdm(total=total_exec_num, unit='meas') as pbar:
-        for trans_ctr in range(num_transactions):
+    with tqdm.tqdm(total=total_exec_num, unit='meas', disable=quiet) as pbar:
+        trans_ctr = 0
+        while trans_ctr < num_transactions:
             for channel in channels:
                 for node_idx, tx_node in enumerate(nodes):
                     rx_nodes = [node for node in nodes if node != tx_node]
@@ -113,7 +117,8 @@ def _run_transactions(num_transactions, channels, nodes, outfile):
                     _end_of_measurement(pbar,
                                         trans_ctr, channel, node_idx, num_nodes)
 
-    outfile.flush()
+                    outfile.flush()
+            trans_ctr += 1
     outfile.close()
 
 def _beginning_of_measurement(pbar, trans_ctr, channel, node_idx, num_nodes):
@@ -189,6 +194,11 @@ def main():
         platform_module = import_module(module_name)
         platform_module.Platform.dump_sample_yml_file()
     elif args.config:
+        if args.quiet:
+            print_bold('-q ("quiet") is specified. ' +
+                       'See mercator.log for mercator\'s activities.')
+            MercatorHalo.disable()
+
         config = _read_config(args.config)
         outfile = Outfile(args.out_file_path, config, args.overwrite_out_file)
 
@@ -200,7 +210,12 @@ def main():
 
         channels = config['measurement']['channels']
         num_transactions = config['measurement']['num_transactions']
-        _run_transactions(num_transactions, channels, nodes, outfile)
+        if num_transactions < 0:
+            # if we have a negative value, take it as an infinite
+            # value
+            num_transactions = math.inf
+        _run_transactions(num_transactions, channels, nodes, outfile,
+                          args.quiet)
     else:
         raise ValueError('Shouldn\'t come here')
 

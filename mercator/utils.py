@@ -44,13 +44,19 @@ def restore_xon_xoff(message):
     return ret
 
 class MercatorHalo(Halo):
+    enabled = True
+
     def __init__(self, text='', color='cyan', text_color=None, spinner=None,
-                 animation=None, placement='left', interval=-1, enabled=True,
+                 animation=None, placement='left', interval=-1,
                  stream=sys.stdout):
         super(MercatorHalo, self).__init__(text, color, text_color, spinner,
                                            animation, placement, interval,
-                                           enabled, stream)
+                                           self.enabled, stream)
         self.start()
+
+    @classmethod
+    def disable(cls):
+        cls.enabled = False
 
     def stop_success(self, text=None):
         self.succeed(text)
