@@ -10,5 +10,5 @@ handlers:
     maxBytes: 1048576  # 1MB
     backupCount: 2
 root:
-  level: DEBUG
+  level: INFO
   handlers: [file]
