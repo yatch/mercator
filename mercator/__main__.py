@@ -16,12 +16,13 @@ from mercator.node import NodeStatus
 
 from mercator.utils import MercatorHalo, Outfile, print_bold
 
-def _init_logger():
-    config_file_path = os.path.join(os.path.dirname(__file__), '..',
-                                    'logging.yml')
-    config_file_path = os.path.abspath(config_file_path)
+def _init_logger(logging_conf_path):
+    if not os.path.exists(logging_conf_path):
+        print_bold('{0} is not found'.format(logging_conf_path))
+        print_bold('use -l option to specify the path to your logging.yml')
+        raise ValueError('logging.yml is not found')
 
-    with open(config_file_path, 'r') as f:
+    with open(logging_conf_path, 'r') as f:
         try:
             config = yaml.safe_load(f)
             logging.config.dictConfig(config)
@@ -53,6 +54,9 @@ def _parse_args():
     parser.add_argument('-f', dest='overwrite_out_file',
                         help='overwrite an existing file',
                         default=False, action='store_true')
+    parser.add_argument('-l', dest='logging_conf_path',
+                        help='path to logging.yml',
+                        type=str, default='./logging.yml')
     parser.add_argument('-q', dest='quiet',
                         help='suppress console outputs', action='store_true')
     return parser.parse_args()
@@ -195,9 +199,10 @@ def  _end_of_measurement(pbar, trans_ctr, channel, node_idx, num_nodes):
     pbar.update()
 
 def main():
-    _init_logger()
-
     args = _parse_args()
+
+    _init_logger(args.logging_conf_path)
+
     if args.dump_sample_yml_file:
         module_name = 'mercator.platform.{0}'.format(args.dump_sample_yml_file)
         platform_module = import_module(module_name)
