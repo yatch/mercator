@@ -5,6 +5,7 @@ iotlabcli
 iotlabclient
 netaddr
 paho-mqtt
+pytest
 python-dateutil
 PyYAML
 tqdm
