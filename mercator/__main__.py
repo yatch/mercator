@@ -58,6 +58,11 @@ def _parse_args():
     return parser.parse_args()
 
 def _read_config(config_file_path):
+    if not os.path.exists(config_file_path):
+        print_bold('{0} is not found'.format(config_file_path))
+        print_bold('use -c option to specify the path to your mercator.yml')
+        raise ValueError('mercator.yml is not found')
+
     with open(config_file_path, 'r') as f:
         try:
             config = yaml.safe_load(f)
