@@ -5,6 +5,7 @@ import logging
 import logging.config
 import math
 import os
+import signal
 import sys
 import threading
 import time
@@ -15,6 +16,9 @@ import yaml
 from mercator.node import NodeStatus
 
 from mercator.utils import MercatorHalo, Outfile, print_bold
+
+class SigIntException(Exception):
+    pass
 
 def _init_logger(logging_conf_path):
     if not os.path.exists(logging_conf_path):
@@ -93,46 +97,72 @@ def _setup_platform(platform_config, args):
     return  platform_module.Platform(platform_config, **platform_args)
 
 def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
-    num_nodes = len(nodes)
-    total_exec_num = num_transactions * len(channels) * num_nodes
+    quit_now = False
 
-    outfile.open()
-    outfile.write_data('start_time',
-                       {'timestamp': datetime.datetime.now().isoformat()})
-    with tqdm.tqdm(total=total_exec_num, unit='meas', disable=quiet) as pbar:
-        trans_ctr = 0
-        while trans_ctr < num_transactions:
-            for channel in channels:
-                for node_idx, tx_node in enumerate(nodes):
-                    rx_nodes = [node for node in nodes if node != tx_node]
+    def _sigint_handler(sig, frame):
+        raise SigIntException()
 
-                    _beginning_of_measurement(pbar,
-                                             trans_ctr, channel,
-                                             node_idx, num_nodes)
+    def _running_in_thread():
+        num_nodes = len(nodes)
+        total_exec_num = num_transactions * len(channels) * num_nodes
+        params = _get_measurement_params(num_transactions, channels, num_nodes)
 
-                    start_time_of_measurement = datetime.datetime.now()
+        with tqdm.tqdm(total=total_exec_num, unit='meas', disable=quiet) as pbar:
+            for trans_ctr, channel, tx_node_idx in params:
+                tx_node = nodes[tx_node_idx]
+                _beginning_of_measurement(pbar,
+                                          trans_ctr, channel,
+                                          tx_node_idx, num_nodes)
+                try:
+                    _do_measurement(nodes, tx_node, trans_ctr, channel, outfile)
+                except RuntimeError:
+                    print_bold('RuntimeError occurs; stopping Mercator...')
+                    break
 
-                    _make_sure_every_node_is_idle(nodes)
+                _end_of_measurement(pbar,
+                                    trans_ctr, channel,
+                                    tx_node_idx, num_nodes)
+                if quit_now:
+                    break
 
-                    _make_rx_nodes_start_listening(rx_nodes,
-                                                   tx_node, channel, trans_ctr)
+    signal.signal(signal.SIGINT, _sigint_handler)
+    thread = threading.Thread(target=_running_in_thread)
+    try:
+        thread.start()
+        thread.join()
+    except (KeyboardInterrupt, SigIntException):
+        quit_now = True
+        print_bold('KeyboardInterrupt/SIGINT is received; Mercator will stop.')
+        print_bold('Waiting for the current measurement to finish...')
+        thread.join()
 
-                    # start TX and wait to finish
-                    tx_node.start_tx(channel, trans_ctr)
-                    tx_node.wait_tx_done()
+def _get_measurement_params(num_transactions, channels, num_nodes):
+    trans_ctr = 0
+    while trans_ctr < num_transactions:
+        for channel in channels:
+            for node_idx in range(num_nodes):
+                yield trans_ctr, channel, node_idx
+        trans_ctr += 1
 
-                    _make_rx_nodes_stop_listening(rx_nodes)
-                    _save_data(outfile, tx_node, rx_nodes,
-                               start_time_of_measurement, trans_ctr, channel)
+def _do_measurement(nodes, tx_node, trans_ctr, channel, outfile):
+    rx_nodes = [node for node in nodes if node != tx_node]
+    start_time_of_measurement = datetime.datetime.now()
 
-                    _end_of_measurement(pbar,
-                                        trans_ctr, channel, node_idx, num_nodes)
+    if not _is_every_node_idle(nodes):
+        raise RuntimeError('NodeStatus Error')
 
-                    outfile.flush()
-            trans_ctr += 1
-    outfile.write_data('end_time',
-                       {'timestamp': datetime.datetime.now().isoformat()})
-    outfile.close()
+    _make_rx_nodes_start_listening(rx_nodes,
+                                   tx_node, channel, trans_ctr)
+
+    # start TX and wait to finish
+    tx_node.start_tx(channel, trans_ctr)
+    tx_node.wait_tx_done()
+
+    _make_rx_nodes_stop_listening(rx_nodes)
+    _save_data(outfile, tx_node, rx_nodes,
+               start_time_of_measurement, trans_ctr, channel)
+
+    outfile.flush()
 
 def _beginning_of_measurement(pbar, trans_ctr, channel, node_idx, num_nodes):
     logging.info('Beginning of measurement - '
@@ -146,7 +176,8 @@ def _beginning_of_measurement(pbar, trans_ctr, channel, node_idx, num_nodes):
                      tx_node='{0}/{1}'.format(node_idx+1,
                                               num_nodes))
 
-def _make_sure_every_node_is_idle(nodes):
+def _is_every_node_idle(nodes):
+    ret = True
     threads = {}
     for _idx, _node in enumerate(nodes):
         thread = threading.Thread(target=_node.update_status)
@@ -154,7 +185,12 @@ def _make_sure_every_node_is_idle(nodes):
         threads[_idx] = thread
     for _idx, _node in enumerate(nodes):
         threads[_idx].join()
-        assert _node.status == NodeStatus.IDLE
+        if _node.status != NodeStatus.IDLE:
+            logging.critical('Invalid NodeStatus at '
+                             + 'Node {0} '.format(_node.id)
+                             + '{0}'.format(_node.status.name))
+            ret = False
+    return ret
 
 def _make_rx_nodes_start_listening(rx_nodes, tx_node, channel, trans_ctr):
     threads = {}
@@ -167,7 +203,6 @@ def _make_rx_nodes_start_listening(rx_nodes, tx_node, channel, trans_ctr):
         threads[_idx] = thread
     for _idx, _node in enumerate(rx_nodes):
         threads[_idx].join()
-        assert _node.status == NodeStatus.RX
 
 def _make_rx_nodes_stop_listening(rx_nodes):
     threads = {}
@@ -177,7 +212,6 @@ def _make_rx_nodes_stop_listening(rx_nodes):
         threads[_idx] = thread
     for _idx, _node in enumerate(rx_nodes):
         threads[_idx].join()
-        assert _node.status == NodeStatus.IDLE
 
 def _save_data(outfile, tx_node, rx_nodes, start_time, trans_ctr, channel):
     outfile.write_data('tx',
@@ -224,12 +258,21 @@ def main():
 
         channels = config['measurement']['channels']
         num_transactions = config['measurement']['num_transactions']
+
         if num_transactions < 0:
             # if we have a negative value, take it as an infinite
             # value
             num_transactions = math.inf
+
+        # body of main
+        outfile.open()
+        outfile.write_data('start_time',
+                           {'timestamp': datetime.datetime.now().isoformat()})
         _run_transactions(num_transactions, channels, nodes, outfile,
                           args.quiet)
+        outfile.write_data('end_time',
+                           {'timestamp': datetime.datetime.now().isoformat()})
+        outfile.close()
     else:
         raise ValueError('Shouldn\'t come here')
 
