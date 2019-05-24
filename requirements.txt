@@ -3,10 +3,17 @@ cryptography==2.4.2
 halo
 iotlabcli
 iotlabclient
+matplotlib
 netaddr
+networkx
+numpy
+pandas
 paho-mqtt
 pytest
 python-dateutil
 PyYAML
+scipy
+seaborn
+statsmodels
 tqdm
 websocket-client
