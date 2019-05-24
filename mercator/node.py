@@ -56,6 +56,7 @@ class Node(object):
 
         # for measurements
         self._status = NodeStatus.UNKNOWN
+        self.tx_node = False
         self.tx_power_dbm = None
         self.tx_len = None
         self.tx_num_pk = None
@@ -75,6 +76,7 @@ class Node(object):
         else:
             raise NotImplementedError('{0} is not supported'.format(
                 self.platform.firmware_os_name))
+        self.tx_node = self._am_i_tx_node(config['tx_nodes'])
         self.tx_len = config['tx_len']
         self.tx_num_pk = config['tx_num_per_transaction']
         self.tx_ifdur_ms = config['tx_interval_ms']
@@ -278,6 +280,9 @@ class Node(object):
 
     def _setup(self):
         pass
+
+    def _am_i_tx_node(self, tx_nodes):
+        raise NotImplementedError()
 
     def _issue_command(self, send_req, recv_resp, retry=True):
         err = []

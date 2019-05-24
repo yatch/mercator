@@ -93,16 +93,18 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
         raise SigIntException()
 
     def _running_in_thread():
-        num_nodes = len(nodes)
-        total_exec_num = num_transactions * len(channels) * num_nodes
-        params = _get_measurement_params(num_transactions, channels, num_nodes)
+        tx_nodes = [node for node in nodes if node.tx_node]
+        num_tx_nodes = len(tx_nodes)
+        total_exec_num = num_transactions * len(channels) * num_tx_nodes
+        params = _get_measurement_params(num_transactions, channels,
+                                         num_tx_nodes)
 
         with tqdm.tqdm(total=total_exec_num, unit='meas', disable=quiet) as pbar:
             for trans_ctr, channel, tx_node_idx in params:
-                tx_node = nodes[tx_node_idx]
+                tx_node = tx_nodes[tx_node_idx]
                 _beginning_of_measurement(pbar,
                                           trans_ctr, channel,
-                                          tx_node_idx, num_nodes)
+                                          tx_node_idx, num_tx_nodes)
                 try:
                     _do_measurement(nodes, tx_node, trans_ctr, channel, outfile)
                 except RuntimeError:
@@ -111,7 +113,7 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
 
                 _end_of_measurement(pbar,
                                     trans_ctr, channel,
-                                    tx_node_idx, num_nodes)
+                                    tx_node_idx, num_tx_nodes)
                 if quit_now:
                     break
 
@@ -126,11 +128,11 @@ def _run_transactions(num_transactions, channels, nodes, outfile, quiet):
         print_bold('Waiting for the current measurement to finish...')
         thread.join()
 
-def _get_measurement_params(num_transactions, channels, num_nodes):
+def _get_measurement_params(num_transactions, channels, num_tx_nodes):
     trans_ctr = 0
     while trans_ctr < num_transactions:
         for channel in channels:
-            for node_idx in range(num_nodes):
+            for node_idx in range(num_tx_nodes):
                 yield trans_ctr, channel, node_idx
         trans_ctr += 1
 

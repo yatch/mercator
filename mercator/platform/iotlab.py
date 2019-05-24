@@ -376,6 +376,11 @@ class Node(mercator.node.Node):
         self.ws = self._open_ws()
         self.ws.settimeout(self.WS_TIMEOUT_SECONDS)
 
+    def _am_i_tx_node(self, tx_nodes):
+        full_node_id = '{0}.{1}.{2}'.format(self.id, self.site,
+                                            IOT_LAB_DOMAIN_NAME)
+        return full_node_id in tx_nodes
+
     def _open_ws(self):
         # short-hands
         username = self.platform.username
