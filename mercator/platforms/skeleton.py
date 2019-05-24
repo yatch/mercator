@@ -1,7 +1,7 @@
 import mercator.node
-import mercator.platform
+import mercator.platforms
 
-class Platform(mercator.platform.Platform):
+class Platform(mercator.platforms.Platform):
     def __init__(self, config, *args):
         # 'args' is platform-specific arguments; see iotlab.py or
         # opentestbed.py for your reference

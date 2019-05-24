@@ -73,7 +73,7 @@ def _read_config(config_file_path):
     return config
 
 def _setup_platform(platform_config, args):
-    module_name = 'mercator.platform.{0}'.format(platform_config['name'])
+    module_name = 'mercator.platforms.{0}'.format(platform_config['name'])
     platform_module = import_module(module_name)
 
     if platform_config['name'] == 'iotlab':
@@ -228,7 +228,7 @@ def main():
     args = _parse_args()
 
     if args.dump_sample_yml_file:
-        module_name = 'mercator.platform.{0}'.format(args.dump_sample_yml_file)
+        module_name = 'mercator.platforms.{0}'.format(args.dump_sample_yml_file)
         platform_module = import_module(module_name)
         platform_module.Platform.dump_sample_yml_file()
     elif args.config:

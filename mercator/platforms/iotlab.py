@@ -23,13 +23,13 @@ import yaml
 
 from mercator.hdlc import HDLC_FLAG
 import mercator.node
-import mercator.platform
+import mercator.platforms
 from mercator.utils import print_bold, MercatorHalo, OSName
 
 LOCAL_IP_ADDRESS = '127.0.0.1'
 IOT_LAB_DOMAIN_NAME = 'iot-lab.info'
 
-class Platform(mercator.platform.Platform):
+class Platform(mercator.platforms.Platform):
     POOLING_INTERVAL_SECONDS = 5
 
     def __init__(self, config, exp_id):

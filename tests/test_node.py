@@ -10,7 +10,7 @@ from mercator.hdlc import (hdlc_calc_crc, hdlc_verify_crc,
                            hdlc_escape, hdlc_unescape, HDLC_FLAG)
 import mercator.node
 from mercator.node import MsgType, NodeStatus, RxFlag
-import mercator.platform
+import mercator.platforms
 from mercator.utils import OSName
 
 TEST_MAC_ADDR = netaddr.EUI('02-01-03-04-05-06-07-08')
@@ -30,7 +30,7 @@ def _dehdlcify(in_buf):
     assert hdlc_verify_crc(body)
     return hdlc_unescape(body[:-2])
 
-class Platform(mercator.platform.Platform):
+class Platform(mercator.platforms.Platform):
     def __init__(self, config):
         self.firmware_os_name = OSName.OpenWSN
 
