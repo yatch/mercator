@@ -270,6 +270,9 @@ def main():
                            {'timestamp': datetime.datetime.now().isoformat()})
         _run_transactions(num_transactions, channels, nodes, outfile,
                           args.quiet)
+        for node_idx, node in enumerate(nodes):
+            outfile.write_data('node_info', {'node_index': node_idx,
+                                             'mac_addr': str(node.mac_addr)})
         outfile.write_data('end_time',
                            {'timestamp': datetime.datetime.now().isoformat()})
         outfile.close()
