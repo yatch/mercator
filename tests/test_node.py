@@ -531,7 +531,7 @@ def test_start_rx_done_duplicate_response(caplog, node, resp_rx):
                 'Recv RESP_RX from {0}'.format(TEST_NODE_ID)))
     # the second RESP_RX should be handled in _store_rx_records() and
     # ignored
-    assert not node.serial_leftover
+    assert node.serial_leftover == HDLC_FLAG
     assert (caplog.record_tuples[2]
             == ('root',
                 logging.INFO,
@@ -549,6 +549,59 @@ def test_start_rx_timeout(caplog, node):
             ('root',
              logging.CRITICAL,
              'Node {0} doesn\'t respond to REQ_RX'.format(TEST_NODE_ID)))
+
+def test_recv_corrupt_resp_rx_1(caplog, node):
+    # there are two HDLC frames of RESP_RX, but the first one has two
+    # missing bytes: 0x3a and 0x7e
+    test_bytes = b'\x7e\x0c\x14\x7e\x0c\x14\x3a\x7e'
+    node.current_channel = TEST_CHANNEL
+    node.current_trans_ctr = TEST_TRANS_CTR
+    node.current_tx_mac_addr = TEST_MAC_ADDR
+
+    caplog.set_level(logging.DEBUG)
+    node.put_test_recv_bytes(test_bytes)
+    result = node._issue_command(node._send_req_rx, node._recv_resp_rx,
+                                 retry=False)
+    # the first one is corrupted
+    assert not result
+    result = node._issue_command(node._send_req_rx, node._recv_resp_rx,
+                                 retry=False)
+    # the second one is fine
+    assert result and result[0]
+
+def test_recv_corrupt_resp_rx_2(caplog, node):
+    # there are two HDLC frames of RESP_RX, but the first one doesn't
+    # have the leading 0x7e (HDLC_FLAG)
+    test_bytes = b'\x0c\x14\x3a\x7e\x7e\x0c\x14\x3a\x7e'
+    node.current_channel = TEST_CHANNEL
+    node.current_trans_ctr = TEST_TRANS_CTR
+    node.current_tx_mac_addr = TEST_MAC_ADDR
+
+    caplog.set_level(logging.DEBUG)
+    node.put_test_recv_bytes(test_bytes)
+    result = node._issue_command(node._send_req_rx, node._recv_resp_rx,
+                                 retry=False)
+    # the first part of the recv bytes is dropped in node._recv_msg()
+    assert result and result[0]
+
+def test_recv_corrupt_resp_rx_3(caplog, node):
+    # there are two HDLC frames of RESP_RX, but the first one lost its
+    # content, which is msg_type 0xc0
+    test_bytes = b'\x7e\x14\x3a\x7e\x0c\x14\x3a\x7e'
+    node.current_channel = TEST_CHANNEL
+    node.current_trans_ctr = TEST_TRANS_CTR
+    node.current_tx_mac_addr = TEST_MAC_ADDR
+
+    caplog.set_level(logging.DEBUG)
+    node.put_test_recv_bytes(test_bytes)
+    result = node._issue_command(node._send_req_rx, node._recv_resp_rx,
+                                 retry=False)
+    # the first one is corrupted
+    assert not result
+    result = node._issue_command(node._send_req_rx, node._recv_resp_rx,
+                                 retry=False)
+    # the second one is fine
+    assert result and result[0]
 
 def test_keep_receiving(caplog, node, resp_rx, ind_rx, resp_idle):
     def _platform_recv_ind_rx(self):

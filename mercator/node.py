@@ -9,8 +9,7 @@ import netaddr
 
 from mercator.hdlc import (hdlc_calc_crc, hdlc_verify_crc,
                            hdlc_escape, hdlc_unescape,
-                           HDLC_FLAG)
-from mercator.hdlc import HDLC_FLAG, HDLC_MIN_FRAME_LEN
+                           HDLC_FLAG, HDLC_MIN_BODY_LEN)
 from mercator.utils import restore_xon_xoff, OSName
 
 class MsgType(enum.IntEnum):
@@ -448,9 +447,8 @@ class Node(object):
             hdlc_frame_end_index = -1
 
         # recv() until we have a complete message which should be
-        # longer than one byte long, and should end with HDLC_FLAG
-        while ((len(serial_bytes) < HDLC_MIN_FRAME_LEN) or
-               (hdlc_frame_end_index == -1)):
+        # surrounded by HDLC_FLAG, and larger than 2 bytes
+        while hdlc_frame_end_index == -1:
             chunk = self._platform_recv()
 
             if chunk:
@@ -458,12 +456,31 @@ class Node(object):
                               + '{0}'.format(chunk.hex()))
                 if serial_bytes or chunk.startswith(HDLC_FLAG):
                     serial_bytes += chunk
+                    garbage = b''
+                elif chunk.find(HDLC_FLAG) == -1:
+                    # no HDLC_FLAG is found
+                    garbage = serial_bytes
                 else:
+                    # found at least one HDLC_FLAG in chunk
+                    hdlc_flag_index = chunk.find(HDLC_FLAG)
+                    garbage = chunk[:hdlc_flag_index]
+                    serial_bytes += chunk[hdlc_flag_index:]
+
+                if garbage:
                     # garbage; recv() again
                     logging.error('Discard chunk from '
                                   + '{0} '.format(self.id)
                                   + 'since it seems garbage: '
                                   + '{0}'.format(chunk.hex()))
+
+                if serial_bytes.find(HDLC_FLAG+HDLC_FLAG) == -1:
+                    # do nothing
+                    pass
+                else:
+                    # if we have two HDLC_FLAG side by side, remove
+                    # one of them
+                    serial_bytes = serial_bytes.replace(HDLC_FLAG+HDLC_FLAG,
+                                                        HDLC_FLAG)
             else:
                 # no data is received
                 self.serial_leftover = serial_bytes
@@ -477,7 +494,9 @@ class Node(object):
         # serial_leftover
         if serial_bytes:
             assert hdlc_frame_end_index > 0
-            next_hdlc_frame_start_index = hdlc_frame_end_index + 1
+            # we will use the end of HDLC_FLAG as the start of a next
+            # frame
+            next_hdlc_frame_start_index = hdlc_frame_end_index
             assert next_hdlc_frame_start_index <= len(serial_bytes)
             self.serial_leftover = (
                 serial_bytes[next_hdlc_frame_start_index:]
@@ -510,13 +529,19 @@ class Node(object):
 
         # retrieve a Mercator message in the HDLC frame
         if hdlc_frame:
+            assert hdlc_frame.startswith(HDLC_FLAG)
+            assert not hdlc_frame.endswith(HDLC_FLAG)
             if self.platform.firmware_os_name == OSName.OpenWSN:
                 hdlc_frame = restore_xon_xoff(hdlc_frame)
             logging.debug('Recv HDLC frame(s) from {0}: '.format(self.id)
                           + '{0}'.format(hdlc_frame.hex()))
-            hdlc_body = hdlc_frame[1:-1]
+            hdlc_body = hdlc_frame[1:]
             hdlc_body = hdlc_unescape(hdlc_body)
+            if len(hdlc_body) < HDLC_MIN_BODY_LEN:
+                # invalid length
+                msg = b''
             if hdlc_verify_crc(hdlc_body):
+                assert len(hdlc_body) > 2
                 msg = hdlc_body[:-2]  # remove CRC
             else:
                 msg = b''

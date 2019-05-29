@@ -1,7 +1,7 @@
 class HdlcException(Exception):
     pass
 
-HDLC_MIN_FRAME_LEN = 3  # DATA(>1)|CRC(2)
+HDLC_MIN_BODY_LEN = 3  # DATA(>1)|CRC(2)
 
 HDLC_FLAG           = b'\x7e'
 HDLC_FLAG_ESCAPED   = b'\x5e'
