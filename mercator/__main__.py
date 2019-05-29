@@ -51,6 +51,10 @@ def _parse_args():
     parser.add_argument('-f', dest='overwrite_out_file',
                         help='overwrite an existing file',
                         default=False, action='store_true')
+    parser.add_argument('-s', '--only-platform-setup',
+                        dest='only_platform_setup',
+                        help='exit without measurements',
+                        default=False, action='store_true')
     parser.add_argument('-q', dest='quiet',
                         help='suppress console outputs', action='store_true')
     return parser.parse_args()
@@ -70,6 +74,21 @@ def _read_config(config_file_path):
                   file=sys.stderr)
             print(err, file=sys.stderr)
             exit(1)
+
+    # 'nodes' key may have a list of lists; flatten such a list
+    for node_id_list in [config['platform']['nodes'],
+                      config['measurement']['tx_nodes']]:
+        assert node_id_list
+        if isinstance(node_id_list[0], list):
+            flattened_node_id_list = [node_id for node_id_sub_list in node_id_list
+                                    for node_id in node_id_sub_list]
+            if node_id_list == config['platform']['nodes']:
+                config['platform']['nodes'] = flattened_node_id_list
+            elif node_id_list == config['measurement']['tx_nodes']:
+                config['measurement']['tx_nodes'] = flattened_node_id_list
+            else:
+                raise NotImplementedError()
+
     return config
 
 def _setup_platform(platform_config, args):
@@ -247,26 +266,30 @@ def main():
         platform = _setup_platform(config['platform'], args)
         nodes = platform.setup_measurement(config['measurement'])
 
-        channels = config['measurement']['channels']
-        num_transactions = config['measurement']['num_transactions']
+        if args.only_platform_setup:
+            # done
+            pass
+        else:
+            channels = config['measurement']['channels']
+            num_transactions = config['measurement']['num_transactions']
 
-        if num_transactions < 0:
-            # if we have a negative value, take it as an infinite
-            # value
-            num_transactions = math.inf
+            if num_transactions < 0:
+                # if we have a negative value, take it as an infinite
+                # value
+                num_transactions = math.inf
 
-        # body of main
-        outfile.open()
-        outfile.write_data('start_time',
-                           {'timestamp': datetime.datetime.now().isoformat()})
-        _run_transactions(num_transactions, channels, nodes, outfile,
-                          args.quiet)
-        for node_idx, node in enumerate(nodes):
-            outfile.write_data('node_info', {'node_index': node_idx,
-                                             'mac_addr': str(node.mac_addr)})
-        outfile.write_data('end_time',
-                           {'timestamp': datetime.datetime.now().isoformat()})
-        outfile.close()
+            # body of main
+            outfile.open()
+            outfile.write_data('start_time',
+                               {'timestamp': datetime.datetime.now().isoformat()})
+            _run_transactions(num_transactions, channels, nodes, outfile,
+                              args.quiet)
+            for node_idx, node in enumerate(nodes):
+                outfile.write_data('node_info', {'node_index': node_idx,
+                                                 'mac_addr': str(node.mac_addr)})
+            outfile.write_data('end_time',
+                               {'timestamp': datetime.datetime.now().isoformat()})
+            outfile.close()
     else:
         raise ValueError('Shouldn\'t come here')
 
