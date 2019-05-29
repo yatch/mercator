@@ -6,7 +6,8 @@ import types
 import netaddr
 import pytest
 
-from mercator.hdlc import hdlcify, dehdlcify, HDLC_FLAG
+from mercator.hdlc import (hdlc_calc_crc, hdlc_verify_crc,
+                           hdlc_escape, hdlc_unescape, HDLC_FLAG)
 import mercator.node
 from mercator.node import MsgType, NodeStatus, RxFlag
 import mercator.platform
@@ -18,6 +19,16 @@ TEST_CHANNEL = 11
 TEST_TX_LEN = 100
 TEST_TRANS_CTR = 100
 TEST_RSSI = -50
+
+def _hdlcify(in_buf):
+    crc = hdlc_calc_crc(in_buf)
+    body = hdlc_escape(in_buf + crc)
+    return HDLC_FLAG + body + HDLC_FLAG
+
+def _dehdlcify(in_buf):
+    body = in_buf[1:-1]
+    assert hdlc_verify_crc(body)
+    return hdlc_unescape(body[:-2])
 
 class Platform(mercator.platform.Platform):
     def __init__(self, config):
@@ -122,10 +133,10 @@ def ind_rx():
 
 def test_request_status(caplog, node, resp_st):
     test_status = NodeStatus.IDLE
-    node.put_test_recv_bytes(hdlcify(resp_st(test_status)))
+    node.put_test_recv_bytes(_hdlcify(resp_st(test_status)))
 
     status, mac_addr = node.request_status()
-    sent_bytes = dehdlcify(node.get_sent_bytes())
+    sent_bytes = _dehdlcify(node.get_sent_bytes())
     assert status == test_status
     assert mac_addr == TEST_MAC_ADDR
     assert len(sent_bytes) == 1
@@ -144,8 +155,8 @@ def test_request_status(caplog, node, resp_st):
 def test_request_status_having_ind_up(caplog, node, ind_up, resp_st):
     # put IND_UP before RESP_ST so that they are received at once
     test_status = NodeStatus.IDLE
-    node.put_test_recv_bytes(hdlcify(ind_up)
-                             + hdlcify(resp_st(test_status)))
+    node.put_test_recv_bytes(_hdlcify(ind_up)
+                             + _hdlcify(resp_st(test_status)))
 
     # even in this case, node should identify RESP_ST and process it
     # properly. IND_UP should be ignored
@@ -171,8 +182,8 @@ def test_request_status_duplicate_response(caplog, node, resp_st):
     # put two RESP_ST
     test_status_1 = NodeStatus.RX
     test_status_2 = NodeStatus.IDLE
-    node.put_test_recv_bytes(hdlcify(resp_st(test_status_1))
-                             + hdlcify(resp_st(test_status_2)))
+    node.put_test_recv_bytes(_hdlcify(resp_st(test_status_1))
+                             + _hdlcify(resp_st(test_status_2)))
 
     status, mac_addr = node.request_status()
     assert status == test_status_1
@@ -189,12 +200,12 @@ def test_request_status_duplicate_response(caplog, node, resp_st):
             == ('root',
                 logging.INFO,
                 'Recv RESP_ST from {0}'.format(TEST_NODE_ID)))
-    assert node.serial_leftover == hdlcify(resp_st(test_status_2))
+    assert node.serial_leftover == _hdlcify(resp_st(test_status_2))
 
 def test_request_status_with_retries(caplog, node, resp_st):
     retry_count = 1
     test_status = NodeStatus.IDLE
-    node.put_test_recv_bytes(hdlcify(resp_st(test_status)))
+    node.put_test_recv_bytes(_hdlcify(resp_st(test_status)))
     node.set_retry_count(retry_count)
 
     status, mac_addr = node.request_status()
@@ -234,7 +245,7 @@ def test_request_status_timeout(caplog, node):
 
 def test_request_idle(caplog, node, resp_idle):
     node.status = NodeStatus.RX
-    node.put_test_recv_bytes(hdlcify(resp_idle))
+    node.put_test_recv_bytes(_hdlcify(resp_idle))
     node.request_idle()
 
     assert node.status == NodeStatus.IDLE
@@ -258,7 +269,7 @@ def test_request_idle_timeout(caplog, node, resp_idle):
              'Node {0} doesn\'t respond to REQ_IDLE'.format(TEST_NODE_ID)))
 
 def test_wait_ind_up(caplog, node, ind_up):
-    node.put_test_recv_bytes(hdlcify(ind_up))
+    node.put_test_recv_bytes(_hdlcify(ind_up))
     node.wait_ind_up()
 
     assert len(caplog.record_tuples) == 2
@@ -285,7 +296,7 @@ def test_wait_ind_up_timeout(caplog, node, ind_up):
                 'No IND_UP from {0}'.format(TEST_NODE_ID)))
 
 def test_start_tx(caplog, node, resp_tx):
-    node.put_test_recv_bytes(hdlcify(resp_tx))
+    node.put_test_recv_bytes(_hdlcify(resp_tx))
     node.start_tx(TEST_CHANNEL, TEST_TRANS_CTR)
 
     assert node.status == NodeStatus.TX
@@ -301,8 +312,8 @@ def test_start_tx(caplog, node, resp_tx):
 
 def test_start_tx_having_ind_txdone(caplog, node, resp_tx, ind_txdone):
     # IND_TXDONE may follow RESP_TX especially when using opentestbed
-    node.put_test_recv_bytes(hdlcify(resp_tx)
-                             +hdlcify(ind_txdone))
+    node.put_test_recv_bytes(_hdlcify(resp_tx)
+                             +_hdlcify(ind_txdone))
     node.start_tx(TEST_CHANNEL, TEST_TRANS_CTR)
 
     assert len(caplog.record_tuples) == 2
@@ -316,7 +327,7 @@ def test_start_tx_having_ind_txdone(caplog, node, resp_tx, ind_txdone):
                 'Recv RESP_TX from {0}'.format(TEST_NODE_ID)))
 
     # IND_TXDONE should be ignored and saved in serial_leftover
-    assert node.serial_leftover == hdlcify(ind_txdone)
+    assert node.serial_leftover == _hdlcify(ind_txdone)
 
 def test_start_tx_timeout(caplog, node, resp_st):
     def _platform_recv(self):
@@ -327,7 +338,7 @@ def test_start_tx_timeout(caplog, node, resp_st):
         if self.req_count % 2:  # odd, RESP_TX is expected
             return b''  # return nothing
         else:
-            return hdlcify(resp_st(NodeStatus.IDLE))
+            return _hdlcify(resp_st(NodeStatus.IDLE))
 
     node._platform_recv = types.MethodType(_platform_recv, node)
     with pytest.raises(RuntimeError):
@@ -353,7 +364,7 @@ def test_start_tx_delayed_resp_tx(caplog, node, resp_tx, resp_st):
             # return nothing for the first REQ_TX
             return b''
         elif self.req_count == 2:
-            return hdlcify(resp_tx)
+            return _hdlcify(resp_tx)
         else:
             assert False # shouldn't come
 
@@ -383,7 +394,7 @@ def test_start_tx_recv_ind_txdone(caplog, node, ind_txdone):
             # return nothing for the first REQ_TX
             return b''
         elif self.req_count == 2:
-            return hdlcify(ind_txdone)
+            return _hdlcify(ind_txdone)
         else:
             assert False # shouldn't come
 
@@ -405,7 +416,7 @@ def test_start_tx_recv_ind_txdone(caplog, node, ind_txdone):
 
 def test_wait_tx_done(caplog, node, ind_txdone, resp_idle):
     node.status = NodeStatus.TX
-    node.put_test_recv_bytes(hdlcify(ind_txdone) + hdlcify(resp_idle))
+    node.put_test_recv_bytes(_hdlcify(ind_txdone) + _hdlcify(resp_idle))
     node.wait_tx_done()
     assert node.status == NodeStatus.IDLE
 
@@ -429,9 +440,9 @@ def test_wait_tx_done(caplog, node, ind_txdone, resp_idle):
 
 def test_wait_tx_done_resp_st(caplog, node, resp_st, ind_txdone, resp_idle):
     # RESP_TX may be followed by IND_TXDONE when REQ_TX is re-sent
-    node.put_test_recv_bytes(hdlcify(resp_st(NodeStatus.TX))
-                             + hdlcify(ind_txdone)
-                             + hdlcify(resp_idle))
+    node.put_test_recv_bytes(_hdlcify(resp_st(NodeStatus.TX))
+                             + _hdlcify(ind_txdone)
+                             + _hdlcify(resp_idle))
     node.wait_tx_done()
 
     # RESP_TX should be ignored
@@ -482,7 +493,7 @@ def test_wait_tx_done_timeout(caplog, node, resp_idle):
     assert node.current_tx_mac_addr is None
 
 def test_start_rx(caplog, node, resp_rx):
-    node.put_test_recv_bytes(hdlcify(resp_rx))
+    node.put_test_recv_bytes(_hdlcify(resp_rx))
     node.start_rx(TEST_CHANNEL, TEST_MAC_ADDR, TEST_TRANS_CTR)
     assert node.status == NodeStatus.RX
 
@@ -502,8 +513,8 @@ def test_start_rx(caplog, node, resp_rx):
 
 def test_start_rx_done_duplicate_response(caplog, node, resp_rx):
     # two RESP_RX are received at once
-    node.put_test_recv_bytes(hdlcify(resp_rx)
-                             + hdlcify(resp_rx))
+    node.put_test_recv_bytes(_hdlcify(resp_rx)
+                             + _hdlcify(resp_rx))
     node.start_rx(TEST_CHANNEL, TEST_MAC_ADDR, TEST_TRANS_CTR)
     # stop the thread directly
     node.status = NodeStatus.IDLE
@@ -542,7 +553,7 @@ def test_start_rx_timeout(caplog, node):
 def test_keep_receiving(caplog, node, resp_rx, ind_rx, resp_idle):
     def _platform_recv_ind_rx(self):
         if self.get_sent_bytes():  # expect this is REQ_RX
-            ret = hdlcify(resp_rx)
+            ret = _hdlcify(resp_rx)
         else:
             time.sleep(0.10)
             if hasattr(self, 'pkctr'):
@@ -555,7 +566,7 @@ def test_keep_receiving(caplog, node, resp_rx, ind_rx, resp_idle):
             assert self.pkctr < 2**16
 
             # incomplete rx_record which doesn't have msg_type
-            rx_record = hdlcify(ind_rx(self.pkctr))
+            rx_record = _hdlcify(ind_rx(self.pkctr))
 
             if self.pkctr == 0:
                 ret = rx_record + HDLC_FLAG
@@ -605,13 +616,13 @@ def test_duplicate_ind_rx(caplog, node, ind_rx):
              + '(pkctr:{0})'.format(test_pkctr)))
 
 def test_stop_rx(caplog, node, resp_rx, resp_idle):
-    node.put_test_recv_bytes(hdlcify(resp_rx))
+    node.put_test_recv_bytes(_hdlcify(resp_rx))
     node.start_rx(TEST_CHANNEL, TEST_MAC_ADDR, TEST_TRANS_CTR)
 
     def _platform_recv(self):
         if self.sent_bytes and (self.sent_bytes[1] == MsgType.REQ_IDLE):
             self.sent_bytes = b''
-            return hdlcify(resp_idle)
+            return _hdlcify(resp_idle)
         else:
             self.sent_bytes = b''
             return b''

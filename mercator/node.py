@@ -7,7 +7,9 @@ import time
 
 import netaddr
 
-from mercator.hdlc import hdlcify, dehdlcify, HdlcException
+from mercator.hdlc import (hdlc_calc_crc, hdlc_verify_crc,
+                           hdlc_escape, hdlc_unescape,
+                           HDLC_FLAG)
 from mercator.hdlc import HDLC_FLAG, HDLC_MIN_FRAME_LEN
 from mercator.utils import restore_xon_xoff, OSName
 
@@ -427,7 +429,8 @@ class Node(object):
             raise RuntimeError(err_str)
 
     def _send_msg(self, msg):
-        hdlc_frame = hdlcify(msg)
+        crc = hdlc_calc_crc(msg)
+        hdlc_frame = HDLC_FLAG + hdlc_escape(msg+crc) + HDLC_FLAG
         logging.info('Send {0} to {1}'.format(MsgType(msg[0]).name,
                                               self.id))
         logging.debug('Request HDLC frame to {0}: '.format(self.id)
@@ -511,12 +514,14 @@ class Node(object):
                 hdlc_frame = restore_xon_xoff(hdlc_frame)
             logging.debug('Recv HDLC frame(s) from {0}: '.format(self.id)
                           + '{0}'.format(hdlc_frame.hex()))
-            try:
-                msg = dehdlcify(hdlc_frame)
-            except HdlcException as err:
-                logging.info(str(err) + ': {0}'.format(hdlc_frame.hex()))
-                msg = b''  # an empty msg
+            hdlc_body = hdlc_frame[1:-1]
+            hdlc_body = hdlc_unescape(hdlc_body)
+            if hdlc_verify_crc(hdlc_body):
+                msg = hdlc_body[:-2]  # remove CRC
             else:
+                msg = b''
+
+            if msg:
                 msg_type = MsgType(msg[0])
                 if msg_type == MsgType.IND_RX:
                     # we don't want to log a reception of IND_RX,

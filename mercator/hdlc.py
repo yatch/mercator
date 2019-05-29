@@ -1,7 +1,7 @@
 class HdlcException(Exception):
     pass
 
-HDLC_MIN_FRAME_LEN = 5  # |HDLC_FLAG(1)|DATA|CRC(2)|HDLC_FLAG(1)|
+HDLC_MIN_FRAME_LEN = 3  # DATA(>1)|CRC(2)
 
 HDLC_FLAG           = b'\x7e'
 HDLC_FLAG_ESCAPED   = b'\x5e'
@@ -45,9 +45,10 @@ FCS16TAB  = (
     0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78,
 )
 
-def hdlcify(in_buf):
-    # append CRC to in_buf, and wrap it with HDLC_FLAG(0xfe)
+def _crc_iteration(crc, b):
+    return (crc >> 8) ^ FCS16TAB[((crc ^ b) & 0xff)]
 
+def hdlc_calc_crc(in_buf):
     if not in_buf:
         raise HdlcException('in_buf is empty')
 
@@ -57,53 +58,36 @@ def hdlcify(in_buf):
         crc = _crc_iteration(crc, b)
     crc = 0xffff - crc
 
-    # append CRC
-    out_buf = bytearray(in_buf
-                        + crc.to_bytes(2, byteorder='little', signed=False))
+    return crc.to_bytes(2, byteorder='little', signed=False)
 
-    # stuff bytes
+def hdlc_verify_crc(in_buf):
+    if not in_buf:
+        raise HdlcException('in_buf is empty')
+
+    # assuming the last two bytes is CRC
+    crc = HDLC_CRCINIT
+    for b in (in_buf):
+        crc = _crc_iteration(crc, b)
+    return crc == HDLC_CRCGOOD
+
+def hdlc_escape(in_buf):
+    if not in_buf:
+        raise HdlcException('in_buf is empty')
+
+    out_buf = bytearray(in_buf)
     out_buf = out_buf.replace(HDLC_ESCAPE,
                               HDLC_ESCAPE+HDLC_ESCAPE_ESCAPED)
     out_buf = out_buf.replace(HDLC_FLAG,
                               HDLC_ESCAPE+HDLC_FLAG_ESCAPED)
-
-    # add flags
-    out_buf = HDLC_FLAG + out_buf + HDLC_FLAG
     return out_buf
 
-def dehdlcify(in_buf):
-    # remove HDLC_FLAG(0xfe) and verify CRC
+def hdlc_unescape(in_buf):
+    if not in_buf:
+        raise HdlcException('in_buf is empty')
 
-    if len(in_buf) < HDLC_MIN_FRAME_LEN:
-        raise HdlcException('packet too short')
-
-    hdlc_flag_value = int.from_bytes(HDLC_FLAG, byteorder='big')
-    assert in_buf[0] == hdlc_flag_value
-    assert in_buf[-1] == hdlc_flag_value
-
-    # make copy of input
-    out_buf = in_buf[:]
-
-    # remove flags
-    out_buf = out_buf[1:-1]
-
-    # unstuff
+    out_buf = bytearray(in_buf)
     out_buf = out_buf.replace(HDLC_ESCAPE+HDLC_FLAG_ESCAPED,
                               HDLC_FLAG)
     out_buf = out_buf.replace(HDLC_ESCAPE+HDLC_ESCAPE_ESCAPED,
                               HDLC_ESCAPE)
-
-    # check CRC
-    crc = HDLC_CRCINIT
-    for b in out_buf:
-        crc = _crc_iteration(crc, b)
-    if crc != HDLC_CRCGOOD:
-        raise HdlcException('wrong CRC')
-
-    # remove CRC
-    out_buf = out_buf[:-2]  # remove CRC
-
     return out_buf
-
-def _crc_iteration(crc, b):
-    return (crc >> 8) ^ FCS16TAB[((crc ^ b) & 0xff)]
