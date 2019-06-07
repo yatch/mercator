@@ -214,7 +214,7 @@ def analyze_k7_file(k7_file_path, min_pdr, single_tx):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--min-pdr', dest='min_pdr',
-                        help='minimum PDR(%) of a valid link',
+                        help='minimum PDR(%%) of a valid link',
                         type=int, default=50)
     parser.add_argument('--single-tx', dest='single_tx',
                         help='generate charts for a single TX case',
