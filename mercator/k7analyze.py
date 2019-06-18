@@ -61,6 +61,7 @@ def _plot_node_degree(valid_link_graph):
     data = [degree for _, degree in valid_link_graph.degree]
     ax = sns.distplot(data, bins=max(data),
                       kde=False, norm_hist=True, hist_kws={'cumulative': True})
+    ax.set_xticks(range(0, max(data)))
     ax.set_xlabel('Node Degree')
     ax.set_xlim(0, max(data))
     ax.set_ylabel('Probability')
