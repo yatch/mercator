@@ -61,7 +61,6 @@ def _plot_node_degree(valid_link_graph):
     data = [degree for _, degree in valid_link_graph.degree]
     ax = sns.distplot(data, bins=max(data),
                       kde=False, norm_hist=True, hist_kws={'cumulative': True})
-    ax.axvline(mean(data), color='red')
     ax.set_xlabel('Node Degree')
     ax.set_xlim(0, max(data))
     ax.set_ylabel('Probability')
@@ -108,7 +107,6 @@ def _plot_num_channels_having_valid_links(df, min_pdr, channels):
     data = data['channel']
     ax = sns.distplot(data, bins=len(channels), kde=False,
                       norm_hist=True, hist_kws={'cumulative': True})
-    ax.axvline(mean(data), color='red')
     ax.set_xlabel('Number of Channels with PDR >= {0}%'.format(min_pdr * 100))
     ax.set_ylabel('Probability')
     plt.savefig(CHART_NUM_GOOD_CHANNELS_PER_NBR_FILE_NAME)
