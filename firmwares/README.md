@@ -11,7 +11,7 @@ They are distributed under OpenWSN's [LICENSE](./LICENSE.md).
 ## Source Code
 
 * repository: https://github.com/openwsn-berkeley/openwsn-fw
-* commit hash: `3f2ebe2a`
+* commit hash: `4e959776`
 
 ## How to Build
 
