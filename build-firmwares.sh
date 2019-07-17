@@ -99,7 +99,7 @@ done
 echo "Build logs can be found in ${BUILD_LOG_FILE}"
 
 # update firmwares/README.md
-echo "Update the commit hash value in firmwares/README.md"
+echo "Update the commit hash value in firmwares/README.md with ${COMMIT_HASH}"
 sed -i \
-    -E 's/commit hash: `[0-9a-f]\{7\}`/commit hash: `'${COMMIT_HASH}'`/' \
+    -E 's/commit hash: `[0-9a-f]\{1,\}`/commit hash: `'${COMMIT_HASH}'`/' \
     firmwares/README.md
