@@ -27,3 +27,13 @@ $ cp -p build/iot-lab_M3_armgcc/projects/common/03oos_mercator_prog openwsn-iot-
 $ scons board=openmote-b-24ghz toolchain=armgcc oos_mercator
 $ cp -p build/openmote-b-24ghz_armgcc/projects/common/03oos_mercator_prog.ihex openwsn-openmote-b-24ghz.ihex
 ```
+
+Or, if you have Docker available on your machine, you can use
+`build-firmwares.sh`, which is located at the top directory:
+
+``` shell
+$ git clone https://github.com/yatch/mercator.git
+$ git clone https://github.com/openwsn-berkeley/openwsn-fw
+$ cd mercator
+$ ./build-firmwares.sh ../openwsn-fw
+```
