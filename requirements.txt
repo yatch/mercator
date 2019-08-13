@@ -2,7 +2,8 @@ colored
 cryptography==2.4.2
 halo
 iotlabcli
-iotlabclient
+## iotlabclient is not available via pip right now; needs to be installed manually
+#iotlabclient
 matplotlib
 netaddr
 networkx
